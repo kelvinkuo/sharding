@@ -347,10 +347,12 @@ func (s *Sharding) resolve(query string, args ...interface{}) (ftQuery, stQuery,
 		ftQuery = stmt.String()
 		stmt.FromItems = newTable
 		stmt.OrderBy = replaceOrderByTableName(stmt.OrderBy, tableName, newTable.Name.Name)
+		stmt.Condition = replaceSoftDeleteTableName(stmt.Condition, tableName, newTable.Name.Name)
 		stQuery = stmt.String()
 	case *sqlparser.UpdateStatement:
 		ftQuery = stmt.String()
 		stmt.TableName = newTable
+		stmt.Condition = replaceSoftDeleteTableName(stmt.Condition, tableName, newTable.Name.Name)
 		stQuery = stmt.String()
 	case *sqlparser.DeleteStatement:
 		ftQuery = stmt.String()
@@ -450,4 +452,23 @@ func replaceOrderByTableName(orderBy []*sqlparser.OrderingTerm, oldName, newName
 	}
 
 	return orderBy
+}
+
+func replaceSoftDeleteTableName(condition sqlparser.Expr, oldName, newName string) sqlparser.Expr {
+	var (
+		y        *sqlparser.BinaryExpr
+		deleteAt *sqlparser.QualifiedRef
+	)
+
+	if expr, ok := condition.(*sqlparser.BinaryExpr); ok {
+		if y, ok = expr.Y.(*sqlparser.BinaryExpr); ok {
+			if deleteAt, ok = y.X.(*sqlparser.QualifiedRef); ok {
+				if deleteAt.Table.Name == oldName {
+					deleteAt.Table.Name = newName
+				}
+			}
+		}
+	}
+
+	return condition
 }
